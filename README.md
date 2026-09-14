@@ -11,4 +11,4 @@ dotnet run --project src/Cli
 
 ## Середовище
 
-.NET SDK 10.0, Windows 11 x64 / Ubuntu 24.04 x64
+.NET SDK 10.0, Windows 11 x64

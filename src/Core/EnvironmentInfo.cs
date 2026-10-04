@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Core; // кореневий namespace = ім'я проєкту Core
+namespace Core;
 
 public sealed record EnvironmentReport(
     string OsDescription,
@@ -20,7 +20,6 @@ public static class EnvironmentInfo
         RuntimeInformation.RuntimeIdentifier,
         AppContext.BaseDirectory);
 
-    // Ручне визначення RID: показує, з чого складається рядок win-x64.
     private static string DetectRid()
     {
         string os =

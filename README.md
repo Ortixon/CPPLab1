@@ -1,32 +1,28 @@
-# CrossApp
+# CrossApp — предметна область «Склад»
 
-Лабораторна робота 3 (предметна область — «Склад»): record-типи, pattern matching, імпорт CSV/JSON.
+## Лабораторна 4: доменна модель
 
-## Структура
+Сутність `Core.Domain.Product` (товар на складі) — приватні поля, властивості лише для читання,
+приватний конструктор, єдина точка створення — `Product.Create`.
+`ProductDto` (тиждень 3) лишився форматом даних; зв'язок — `ToDto()` / `Product.FromDto()`.
 
-```
-data/sample.csv (з дефектами), sample_ok.csv, sample_noheader.csv, sample.json, mixed.csv
-src/Core/Dto      ProductDto, WarehouseDto, ImportResult<T>, ImportStats, MixedImportResult
-src/Core/Import   ProductCsvImporter, ProductJsonImporter, MixedCsvImporter
-src/Cli/Program.cs
-```
+### Інваріанти
 
-## Формат data/sample.csv
+1. `Id`, `SKU`, назва й одиниця виміру не порожні — `ArgumentException` (`Create`).
+2. Початковий залишок не від'ємний — `ArgumentOutOfRangeException` (`Create`).
+3. Кількість приходу та видачі більша за нуль — `ArgumentOutOfRangeException` (`RegisterArrival`, `Issue`).
+4. Не можна видати більше, ніж є на складі — `InvalidOperationException` (`Issue`); стан не змінюється.
+5. `FromDto` проходить ті самі перевірки, що й `Create`.
 
-* роздільник — крапка з комою `;`
-* кодування — UTF-8
-* колонки: `id;sku;name;unit;quantity`; перший рядок із заголовком необов'язковий
-* порожні рядки та рядки, що починаються з `#`, ігноруються
-* числа розбираються через `CultureInfo.InvariantCulture`
+Domain не залежить від Console, File і Cli.
 
-Формат `data/mixed.csv`: `P;id;sku;name;unit;quantity` — товар, `W;id;name[;address]` — склад.
-Формат `data/sample.json`: масив об'єктів із полями `id, sku, name, unit, quantity, note`.
+### Запуск
 
-## Запуск
+    dotnet run --project src/Cli
+    dotnet run --project src/Cli -- data/sample_domain.csv
 
-```
-dotnet run --project src/Cli                       # data/sample.csv
-dotnet run --project src/Cli -- data/sample.json   # імпортер за розширенням
-dotnet run --project src/Cli -- --mixed            # data/mixed.csv (рядки P/W)
-dotnet run --project src/Cli -- data/nope.csv      # файл не знайдено, код виходу 1
-```
+### Додаткові завдання
+
+- `DomainImportResult` — сутності + перелік рядків, що не пройшли інваріанти.
+- `IssuingService` — правила на кількох сутностях: не більше 5 відкритих документів на отримувача; видача перевіряє залишки всіх рядків до списання.
+- `DocumentStatus` + `DocumentStatusRules` — стани Draft/Confirmed/Cancelled і переходи через switch expression.

@@ -3,10 +3,10 @@ using Core.Dto;
 namespace Core.Domain;
 
 // Сутність «Товар на складі». Інваріанти:
-//  1. Id, SKU і назва не порожні;
-//  2. залишок ніколи не від'ємний;
-//  3. кількість приходу/видачі > 0;
-//  4. не можна видати більше, ніж є на складі.
+// 1. Id, SKU, назва й одиниця виміру не порожні;
+// 2. залишок ніколи не від'ємний;
+// 3. кількість приходу/видачі > 0;
+// 4. не можна видати більше, ніж є на складі.
 public sealed class Product
 {
     private int _quantity;
@@ -26,7 +26,6 @@ public sealed class Product
         _quantity = quantity;
     }
 
-    // Єдиний спосіб створити товар: усі перевірки тут, ДО створення об'єкта.
     public static Product Create(string id, string sku, string name, string unit, int quantity)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -41,8 +40,7 @@ public sealed class Product
             throw new ArgumentOutOfRangeException(nameof(quantity), quantity,
                 "Початковий залишок не може бути від'ємним");
 
-        return new Product(id.Trim(), sku.Trim().ToUpperInvariant(),
-                           name.Trim(), unit.Trim(), quantity);
+        return new Product(id.Trim(), sku.Trim().ToUpperInvariant(), name.Trim(), unit.Trim(), quantity);
     }
 
     public void RegisterArrival(int amount)
@@ -64,11 +62,8 @@ public sealed class Product
         _quantity -= amount;
     }
 
-    // Мапінг у формат тижня 3 і назад — знадобиться сховищу тижня 5.
-    // Примітка (Note) існує лише у форматі файлу, у сутності її немає.
     public ProductDto ToDto() => new(Id, Sku, Name, Unit, Quantity);
 
-    // Іде через Create — ті самі перевірки, що й при першому створенні.
     public static Product FromDto(ProductDto dto) =>
         Create(dto.Id, dto.Sku, dto.Name, dto.Unit, dto.Quantity);
 

@@ -1,15 +1,20 @@
-# CrossApp — склад (лабораторна 5)
+# CrossApp — лабораторна робота 6: доменні події, Action/Func, лямбди
 
-Сервісний шар: інтерфейси, два сховища, ручний DI.
+## Що додано на тижні 6
+- `src/Core/Events/CatalogChangeKind.cs` — enum виду зміни (Added, Received, Issued, Removed).
+- `src/Core/Events/CatalogChangedEventArgs.cs` — дані події (Id, Kind, Delta, QuantityAfter, At).
+- `src/Core/Services/CatalogService.cs` — `event EventHandler<CatalogChangedEventArgs>? Changed`,
+  єдиний приватний `OnChanged`, `Issue`, `Remove`, `FindAll(Func<Product,bool>)`, `Import(..., Action<string>)`.
+- `src/Cli/Program.cs` — підписка локальним методом + лямбда-лічильник, `-=`, сценарії відмов.
+- Додатково: `INotificationSink` (Core), `SinkCatalogService` (Core), `ConsoleSink`/`FileSink`/`CompositeSink` (Cli).
 
-- Інтерфейс сховища: `ICatalogStore` (`List`, `GetById`, `Add`, `Update`, `Remove`)
-- Реалізації: `InMemoryCatalogStore`, `FileCatalogStore`
-- Сервіс: `CatalogService` (`Add`, `Receive`, `Issue`, `All`, `Find`) — залежить лише від `ICatalogStore`
-- Додатково: `CachingCatalogStore` (декоратор), `CatalogService.Search(Func<Product, bool>)`, `StoreFactory.Create(args)` (прапорці `--file`, `--cache`)
-- Composition root: `src/Cli/Program.cs` (єдине місце з `new` для сховищ)
-- DI-контейнер (`Microsoft.Extensions.DependencyInjection`) не підключено
+## Правила
+- Core не містить `Console` і не пише у файл-журнал; він лише піднімає подію.
+- Подія піднімається **після** успішної зміни стану; якщо інваріант кинув виняток — події немає.
+- Журнал: `logs/app.log` у каталозі збірки (`AppContext.BaseDirectory`), створюється кодом.
 
-Запуск:
-
-    dotnet run --project src/Cli            # у пам'яті
-    dotnet run --project src/Cli -- --file  # файл data/catalog.json
+## Запуск
+```
+dotnet run --project src/Cli            # сховище в пам'яті
+dotnet run --project src/Cli -- --file  # файлове сховище (data/catalog.json)
+```

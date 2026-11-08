@@ -8,6 +8,7 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 var service = new CatalogService(StoreFactory.Create(args));
 var items = service.All();
+var movements = SampleData.Movements();
 
 // Назва звіту — перший аргумент, що не є прапорцем і не є значенням прапорця (--file data.json).
 var command = ParseCommand(args) ?? "report-top";
@@ -46,12 +47,24 @@ switch (command)
         foreach (var g in ReportService.ByUnitQuery(items))
             Console.WriteLine($" {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
         break;
+    case "report-moves":
+        foreach (var m in ReportService.MovementLog(items, movements))
+            Console.WriteLine($" {m.Date:yyyy-MM-dd}  {m.Sku,-10} {m.Name,-22} {m.Delta,5:+0;-0;0}");
+        break;
+    case "report-activity":
+        foreach (var a in ReportService.Activity(items, movements))
+            Console.WriteLine($" {a.Sku,-10} {a.Name,-22} переміщень: {a.Moves,2}  чиста зміна: {a.NetDelta,5:+0;-0;0}");
+        break;
+    case "report-hot":
+        foreach (var a in ReportService.MostActive(items, movements, 5))
+            Console.WriteLine($" {a.Sku,-10} {a.Name,-22} переміщень: {a.Moves,2}  чиста зміна: {a.NetDelta,5:+0;-0;0}");
+        break;
     case "report-bench":
         foreach (var b in ReportBench.Run(100_000))
             Console.WriteLine($" {b.Variant,-45} {b.Milliseconds,8:F1} мс (контрольне значення {b.Result})");
         break;
     default:
-        Console.WriteLine("report-top | report-low | report-groups | report-sum | report-empty | demo-lazy | report-query | report-bench");
+        Console.WriteLine("report-top | report-low | report-groups | report-sum | report-empty | demo-lazy | report-query | report-moves | report-activity | report-hot | report-bench");
         break;
 }
 

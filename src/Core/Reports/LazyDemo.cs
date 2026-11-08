@@ -1,4 +1,4 @@
-﻿using Core.Domain;
+using Core.Domain;
 
 namespace Core.Reports;
 

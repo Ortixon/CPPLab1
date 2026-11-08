@@ -1,4 +1,4 @@
-﻿using Core.Domain;
+using Core.Domain;
 using Core.Services;
 
 namespace Core;
@@ -31,6 +31,26 @@ public static class SampleData
     public static List<Product> Products() => Items
         .Select((x, i) => Product.Create($"P-{i + 1:D3}", x.Sku, x.Name, x.Unit, x.Quantity))
         .ToList();
+
+    /// <summary>15 переміщень: у деяких товарів їх кілька, у частини немає зовсім, одне — на невідомий товар (P-999).</summary>
+    public static List<Movement> Movements() =>
+    [
+        new("P-001", +30, new(2026, 10, 1)),
+        new("P-001", -10, new(2026, 10, 5)),
+        new("P-001", -20, new(2026, 10, 12)),
+        new("P-002", +50, new(2026, 10, 2)),
+        new("P-002", -25, new(2026, 10, 9)),
+        new("P-005", -3,  new(2026, 10, 3)),
+        new("P-008", +10, new(2026, 10, 4)),
+        new("P-008", -6,  new(2026, 10, 8)),
+        new("P-010", -40, new(2026, 10, 6)),
+        new("P-010", +40, new(2026, 10, 11)),
+        new("P-010", -15, new(2026, 10, 14)),
+        new("P-012", -1,  new(2026, 10, 7)),
+        new("P-015", +20, new(2026, 10, 10)),
+        new("P-016", -2,  new(2026, 10, 13)),
+        new("P-999", +5,  new(2026, 10, 15)),
+    ];
 
     public static void Load(CatalogService service)
     {

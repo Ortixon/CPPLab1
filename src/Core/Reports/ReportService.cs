@@ -1,4 +1,4 @@
-﻿using Core.Domain;
+using Core.Domain;
 
 namespace Core.Reports;
 
@@ -15,10 +15,9 @@ public static class ReportService
               .Select(p => new StockLine(p.Sku, p.Name, p.Quantity, p.Unit))
               .ToList();
 
-    // 2) топ-N зі стабільним порядком: другий ключ — унікальний Sku
+    // 2) топ-N зі стабільним порядком: власний TopBy (другий ключ — унікальний Sku)
     public static IReadOnlyList<StockLine> TopByQuantity(IEnumerable<Product> source, int n) =>
-        source.OrderByDescending(p => p.Quantity).ThenBy(p => p.Sku, StringComparer.Ordinal)
-              .Take(n)
+        source.TopBy(p => p.Quantity, p => p.Sku, n)
               .Select(p => new StockLine(p.Sku, p.Name, p.Quantity, p.Unit))
               .ToList();
 
@@ -47,4 +46,28 @@ public static class ReportService
          orderby g.Sum(p => p.Quantity) descending, g.Key
          select new GroupSummary(g.Key, g.Count(), g.Sum(p => p.Quantity)))
         .ToList();
+
+    // Додатково 1: Join — журнал переміщень (переміщення без відомого товару відкидаються)
+    public static IReadOnlyList<MovementLine> MovementLog(IEnumerable<Product> products, IEnumerable<Movement> movements) =>
+        products.Join(movements,
+                      product => product.Id,
+                      movement => movement.ProductId,
+                      (product, movement) => new MovementLine(product.Sku, product.Name, movement.Delta, movement.Date))
+                .OrderBy(l => l.Date).ThenBy(l => l.Sku, StringComparer.Ordinal)
+                .ToList();
+
+    // Додатково 1: GroupJoin — зведення по КОЖНОМУ товару, навіть якщо переміщень не було
+    public static IReadOnlyList<MovementSummary> Activity(IEnumerable<Product> products, IEnumerable<Movement> movements) =>
+        products.GroupJoin(movements,
+                           product => product.Id,
+                           movement => movement.ProductId,
+                           (product, moves) => new MovementSummary(product.Sku, product.Name, moves.Count(), moves.Sum(m => m.Delta)))
+                .OrderBy(s => s.Sku, StringComparer.Ordinal)
+                .ToList();
+
+    // Додатково 2: TopBy у другому звіті — найактивніші позиції за кількістю переміщень
+    public static IReadOnlyList<MovementSummary> MostActive(IEnumerable<Product> products, IEnumerable<Movement> movements, int n) =>
+        Activity(products, movements)
+            .TopBy(s => s.Moves, s => s.Sku, n)
+            .ToList();
 }

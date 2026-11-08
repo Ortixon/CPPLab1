@@ -10,7 +10,7 @@ public sealed class CatalogService(ICatalogStore store)
 
     public event EventHandler<CatalogChangedEventArgs>? Changed;
 
-    // Єдине місце, де піднімається подія. Core лише повідомляє, ЩО сталося.
+    
     private void OnChanged(Product p, CatalogChangeKind kind, int delta, int? quantityAfter = null) =>
         Changed?.Invoke(this, new CatalogChangedEventArgs(p.Id, kind, delta, quantityAfter ?? p.Quantity));
 

@@ -1,26 +1,40 @@
-using Core.Domain;
+﻿using Core.Domain;
+using Core.Services;
 
 namespace Core;
 
+/// <summary>18 записів, 4 одиниці виміру; 3 позиції з залишком &lt; 10; є однакові залишки (120) і "ШТ" у іншому регістрі.</summary>
 public static class SampleData
 {
-    public static IEnumerable<Product> Products() =>
+    public static readonly (string Sku, string Name, string Unit, int Quantity)[] Items =
     [
-        Product.Create("P-001", "SKU-001", "Цемент М400 25кг", "шт", 120),
-        Product.Create("P-002", "SKU-002", "Пісок будівельний", "т", 18),
-        Product.Create("P-003", "SKU-003", "Цегла червона", "шт", 4200),
-        Product.Create("P-004", "SKU-004", "Фарба водоемульсійна", "шт", 36),
-        Product.Create("P-005", "SKU-005", "Шпаклівка фінішна", "кг", 250),
-        Product.Create("P-006", "SKU-006", "Профіль CD-60", "м", 800),
-        Product.Create("P-007", "SKU-007", "Саморізи 3.5x25", "уп", 140),
-        Product.Create("P-008", "SKU-008", "Грунтовка глибокого проникнення", "л", 64),
-        Product.Create("P-009", "SKU-009", "Клей плитковий", "кг", 540),
-        Product.Create("P-010", "SKU-010", "Гіпсокартон 12.5мм", "шт", 95),
-        Product.Create("P-011", "SKU-011", "Утеплювач мінвата 100мм", "м2", 310),
-        Product.Create("P-012", "SKU-012", "Труба ПВХ 50мм", "м", 220),
-        Product.Create("P-013", "SKU-013", "Кабель ВВГ 3x2.5", "м", 1500),
-        Product.Create("P-014", "SKU-014", "Розетка накладна", "шт", 75),
-        Product.Create("P-015", "SKU-015", "Ламінат 8мм", "м2", 180),
-        Product.Create("P-016", "SKU-016", "Двері міжкімнатні", "шт", 12),
+        ("SKU-101", "Кабель ВВГ 3x2.5",        "м",  75),
+        ("SKU-102", "Провід ПВС 2x1.5",        "м",  120),
+        ("SKU-103", "Кабель-канал 25x16",      "м",  60),
+        ("SKU-104", "Шланг поливальний",       "м",  45),
+        ("SKU-201", "Саморіз 3.5x35",          "кг", 7),
+        ("SKU-202", "Цвяхи 80 мм",             "кг", 32),
+        ("SKU-203", "Гвинт М6x30",             "кг", 18),
+        ("SKU-301", "Герметик силіконовий",    "шт", 4),
+        ("SKU-302", "Скоба 10 мм",             "шт", 85),
+        ("SKU-303", "Дюбель 6x40",             "шт", 120),
+        ("SKU-304", "Лампа LED E27",           "шт", 64),
+        ("SKU-305", "Вимикач одноклавішний",   "шт", 9),
+        ("SKU-306", "Розетка із заземленням",  "шт", 40),
+        ("SKU-307", "Автомат 16А",             "шт", 28),
+        ("SKU-308", "Стрічка ізоляційна",      "ШТ", 55),
+        ("SKU-401", "Фарба біла",              "л",  22),
+        ("SKU-402", "Розчинник",               "л",  12),
+        ("SKU-403", "Олія мастильна",          "л",  15),
     ];
+
+    public static List<Product> Products() => Items
+        .Select((x, i) => Product.Create($"P-{i + 1:D3}", x.Sku, x.Name, x.Unit, x.Quantity))
+        .ToList();
+
+    public static void Load(CatalogService service)
+    {
+        foreach (var (sku, name, unit, qty) in Items)
+            service.Add(sku, name, unit, qty);
+    }
 }

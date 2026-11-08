@@ -1,129 +1,73 @@
-using Cli;
-using Core.Abstractions;
-using Core.Events;
+﻿using Core;
+using Core.Reports;
 using Core.Services;
 using Core.Storage;
 
+
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-// Composition root: конкретні класи знає лише Cli.
-bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
-ICatalogStore store = useFile
-    ? new FileCatalogStore(dataPath)
-    : new InMemoryCatalogStore(SampleData.Products());
-var service = new CatalogService(store);
-Console.WriteLine($"Сховище: {store.GetType().Name}");
+var service = new CatalogService(StoreFactory.Create(args));
+var items = service.All();
 
-// ---------- Журнал: шлях будується тут, Core про файл нічого не знає ----------
-var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
-Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-File.WriteAllText(logPath, string.Empty);   // кожен запуск — чистий журнал
+// Назва звіту — перший аргумент, що не є прапорцем і не є значенням прапорця (--file data.json).
+var command = ParseCommand(args) ?? "report-top";
 
-// Крок 3: підписник — локальний метод (на відміну від лямбди, його можна зняти через -=)
-void OnCatalogChanged(object? sender, CatalogChangedEventArgs e)
+switch (command)
 {
-    var line = LogFormat.Line(e);
-    Console.WriteLine(line);
-    File.AppendAllText(logPath, line + Environment.NewLine);
+    case "report-top":
+        Print(ReportService.TopByQuantity(items, 5));
+        break;
+    case "report-low":
+        Print(ReportService.LowStock(items, 10));
+        break;
+    case "report-groups":
+        foreach (var g in ReportService.ByUnit(items))
+            Console.WriteLine($" {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
+        break;
+    case "report-sum":
+        var t = ReportService.Totals(items);
+        Console.WriteLine($" позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
+        break;
+    case "report-empty":
+        Console.WriteLine("Порожнє джерело:");
+        Print(ReportService.LowStock([], 10));
+        Print(ReportService.TopByQuantity([], 5));
+        Console.WriteLine($" груп: {ReportService.ByUnit([]).Count}");
+        var e = ReportService.Totals([]);
+        Console.WriteLine($" позицій {e.Items}, всього {e.Total}, середнє {e.Average:F2}, макс {e.Max}");
+        break;
+    case "demo-lazy":
+        var d = LazyDemo.Run(items);
+        Console.WriteLine($"Дефіцитних до змін: {d.Before}");
+        Console.WriteLine($"Дефіцитних після змін: {d.After}");
+        Console.WriteLine($"У знімку лишилось: {d.SnapshotAfterClear} (знімок мав {d.SnapshotCount}, після Clear джерела не змінився)");
+        break;
+    case "report-query":
+        foreach (var g in ReportService.ByUnitQuery(items))
+            Console.WriteLine($" {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
+        break;
+    case "report-bench":
+        foreach (var b in ReportBench.Run(100_000))
+            Console.WriteLine($" {b.Variant,-45} {b.Milliseconds,8:F1} мс (контрольне значення {b.Result})");
+        break;
+    default:
+        Console.WriteLine("report-top | report-low | report-groups | report-sum | report-empty | demo-lazy | report-query | report-bench");
+        break;
 }
 
-// Крок 4: другий підписник — лямбда із замиканням над локальною змінною
-int changes = 0;
-service.Changed += OnCatalogChanged;      // 1-й за порядком підписки
-service.Changed += (_, _) => changes++;   // 2-й
-
-// ---------- Сценарій 1: події (кроки 5 і 6) ----------
-Console.WriteLine("\n=== Сценарій 1: додати, змінити, порахувати події ===");
-var created = service.Add("SKU-101", "Кабель UTP cat6", "м", 50);
-service.Receive(created.Id, 25);
-Console.WriteLine($"Подій отримано: {changes}");
-
-// Крок 6: відмови, поки підписка ще активна — події не має бути
-Console.WriteLine("\n=== Сценарій 2: відмови (виняток є, події немає) ===");
-TryDo("прихід -5", () => service.Receive(created.Id, -5));
-TryDo("прихід на неіснуючий id", () => service.Receive("no-such-id", 5));
-TryDo("видача більша за залишок", () => service.Issue(created.Id, 1000));
-Console.WriteLine($"Подій отримано: {changes} (без змін), залишок: {service.Find(created.Id)!.Quantity}");
-
-// Крок 5: відписка — операція виконується, повідомлення немає
-Console.WriteLine("\n=== Після відписки -= OnCatalogChanged ===");
-service.Changed -= OnCatalogChanged;
-service.Receive(created.Id, 5);   // тиха операція: підписка керована
-Console.WriteLine($"Подій отримано: {changes}");   // +1 лише від лямбди-лічильника
-Console.WriteLine($"Залишок змінився: {service.Find(created.Id)!.Quantity} {created.Unit}");
-
-// Крок 7: Func замість події — потрібне значення у відповідь
-Console.WriteLine("\n=== Func: FindAll(p => p.Quantity < 10) ===");
-foreach (var p in service.FindAll(p => p.Quantity < 10))
-    Console.WriteLine($"{p.Id} [{p.Sku}] {p.Name} — {p.Quantity} {p.Unit}");
-int threshold = 20;   // замикання і тут: лямбда бачить локальну змінну
-Console.WriteLine($"Записів із залишком < {threshold}: {service.FindAll(p => p.Quantity < threshold).Count}");
-
-// ---------- Сценарій 3: порядок підписників, Issued і Removed ----------
-Console.WriteLine("\n=== Сценарій 3: порядок підписників, Issued, Removed ===");
-var service3 = new CatalogService(new InMemoryCatalogStore());
-service3.Changed += (_, e) => Console.WriteLine($"  підписник A: {e.Kind,-8} {e.Delta,4:+0;-0} → {e.QuantityAfter}");
-service3.Changed += (_, e) => Console.WriteLine($"  підписник B: {e.Kind,-8} {e.Delta,4:+0;-0} → {e.QuantityAfter}");
-var tmp = service3.Add("SKU-300", "Лампа LED", "шт", 40);
-service3.Issue(tmp.Id, 15);
-service3.Remove(tmp.Id);
-
-// ---------- Сценарій 4: виняток у підписнику ----------
-Console.WriteLine("\n=== Сценарій 4: виняток в одному з підписників ===");
-var service4 = new CatalogService(new InMemoryCatalogStore());
-service4.Changed += (_, _) => throw new InvalidOperationException("збій першого підписника");
-service4.Changed += (_, _) => Console.WriteLine("  другий підписник викликано");
-try { service4.Add("SKU-400", "Скотч", "шт", 10); }
-catch (Exception ex) { Console.WriteLine($"  {ex.GetType().Name} — {ex.Message}"); }
-Console.WriteLine($"  Запис у сховищі є: {service4.All().Count == 1} (зміна стану відбулася, подія обірвалася)");
-
-// ---------- Сценарій 5: відписка новою лямбдою не працює ----------
-Console.WriteLine("\n=== Сценарій 5: -= новою лямбдою не знімає підписку ===");
-var service6 = new CatalogService(new InMemoryCatalogStore());
-int c6 = 0;
-service6.Changed += (_, _) => c6++;
-service6.Changed -= (_, _) => c6++;   // інший екземпляр делегата — нічого не знімає
-service6.Add("SKU-701", "Ізолента", "шт", 5);
-Console.WriteLine($"  Після -= новою лямбдою: {c6} (підписка лишилась)");
-EventHandler<CatalogChangedEventArgs> counter = (_, _) => c6++;
-service6.Changed += counter;
-service6.Changed -= counter;          // той самий екземпляр, збережений у змінній
-c6 = 0;
-service6.Add("SKU-702", "Стрічка", "шт", 5);
-Console.WriteLine($"  Після -= збереженим делегатом: {c6} (знято лише counter; перша лямбда ще працює)");
-
-// ---------- Додаткове 2: Action<string> ----------
-Console.WriteLine("\n=== Додатково 2: Import з Action<string> ===");
-var service5 = new CatalogService(new InMemoryCatalogStore());
-int imported5 = 0;
-service5.Changed += (_, _) => imported5++;
-string[] csv =
-[
-    "SKU-501;Болт М8;шт;200",
-    "SKU-502;Гайка М8;шт",
-    "SKU-503;Шайба;шт;багато",
-    "SKU-504;Дюбель;шт;-5",
-    "SKU-505;Шуруп;шт;80",
-];
-var skipped = new List<string>();
-int ok = service5.Import(csv, msg => { skipped.Add(msg); Console.WriteLine($"  пропущено: {msg}"); });
-Console.WriteLine($"  Імпортовано: {ok}, пропущено: {skipped.Count}, подій: {imported5}");
-
-// ---------- Додаткове 1: INotificationSink замість події ----------
-Console.WriteLine("\n=== Додатково 1: INotificationSink через конструктор ===");
-var sinkLog = Path.Combine(AppContext.BaseDirectory, "logs", "sink.log");
-File.WriteAllText(sinkLog, string.Empty);
-var sinkService = new SinkCatalogService(new InMemoryCatalogStore(),
-    new CompositeSink(new ConsoleSink(), new FileSink(sinkLog)));
-var s = sinkService.Add("SKU-601", "Шнур", "м", 30);
-sinkService.Receive(s.Id, 10);
-Console.WriteLine($"  Рядків у sink.log: {File.ReadAllLines(sinkLog).Length}");
-
-Console.WriteLine($"\nЖурнал: {logPath}");
-
-static void TryDo(string title, Action action)
+static string? ParseCommand(string[] args)
 {
-    try { action(); Console.WriteLine($"{title}: OK"); }
-    catch (Exception ex) { Console.WriteLine($"{title}: {ex.GetType().Name} — {ex.Message}"); }
+    for (int i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--file") { i++; continue; } // пропускаємо прапорець і його значення
+        if (!args[i].StartsWith("--")) return args[i];
+    }
+    return null;
+}
+
+static void Print(IReadOnlyList<StockLine> lines)
+{
+    if (lines.Count == 0) { Console.WriteLine(" (немає записів)"); return; }
+    foreach (var l in lines)
+        Console.WriteLine($" {l.Sku,-10} {l.Name,-22} {l.Quantity,6} {l.Unit}");
 }
